@@ -22,3 +22,142 @@ mailing list.
 
 Mailing list: http://tech.groups.yahoo.com/group/olinuxino
 Source code: https://github.com/OLIMEX/meta-olinuxino
+
+Step by step instructions to building kernel/rootfs images and writing to SD card:
+
+* Make sure your distro has the needed packages isntalled for building OE. Helpful
+ package lists and copy/paste apt-get install commands can be found at:
+ http://www.openembedded.org/wiki/OEandYourDistro 
+ and 
+ http://www.yoctoproject.org/docs/current/yocto-project-qs/yocto-project-qs.html#the-linux-distro
+
+* Create a directory where we'll put all the stuff:
+
+~$ cd ~
+~$ mkdir olinuxino
+~$ cd olinuxino
+
+* Clone git repositories:
+
+~/olinuxino$ git clone git://git.openembedded.org/openembedded-core oe-core
+~/olinuxino$ cd oe-core
+~/olinuxino/oe-core$ git clone git://git.openembedded.org/bitbake bitbake
+~/olinuxino/oe-core$ git clone git://github.com/Freescale/meta-fsl-arm.git
+~/olinuxino/oe-core$ git clone git://github.com/radolin/meta-olinuxino.git
+
+* Initialize config by sourcing the oe-init-build-env, note the space after the dot
+
+~/olinuxino/oe-core$ . oe-init-build-env
+
+You should see some text that initial confiuration is being created and end up 
+in the ~/olinuxino/oe-core/build directory. Here inside the conf dir there 
+are two files which need to be edited bblayers.conf and local.conf
+
+In bblayers.conf you should add all the layers you want to use. Use absolute paths.
+Mine looks like this:
+
+~/olinuxino/oe-core/build/conf$ cat bblayers.conf 
+# LAYER_CONF_VERSION is increased each time build/conf/bblayers.conf
+# changes incompatibly
+LCONF_VERSION = "4"
+
+BBFILES ?= ""
+BBLAYERS ?= " \
+  /home/rado/olinuxino/oe-core/meta \
+  /home/rado/olinuxino/oe-core/meta-fsl-arm \
+  /home/rado/olinuxino/oe-core/meta-olinuxino \
+  "
+
+In local.conf you should set the desired MACHINE:
+
+MACHINE = "olinuxino"
+
+Also, especially if you have a multi-core CPU the following settings can speed things up:
+
+PARALLEL_MAKE = "-j 4"
+BB_NUMBER_THREADS = "4"
+
+* Using bitbake to build things
+
+Now, you should be all set up! Whenever you want to use bitbake go to the ~/olinuxino/oe-core dir 
+and source the oe-init-build-env script:
+
+~/olinuxino/oe-core$ . oe-init-build-env
+
+Then from inside the build directory, call bitbake with a recipe name:
+
+~/olinuxino/oe-core/build$ bitbake core-image-minimal
+
+This will now fetch all the sources from the internet and build a cross toolchain, linux kernel
+and root filesystem for your board. This can take may hours depending on the speed of your PC 
+and internet connection and use 15-20G of disk space, so make sure you have enough free.
+
+If all goes well and the build is finished without errors you should find the results in the
+~/olinuxino/oe-core/build/tmp-eglibc/deploy/images/ directory. The files most interesting to you
+are the core-image-minimal-olinuxino.tar.bz2 rootfs archive and the zImage-olinuxino.bin kernel image.
+
+* Preparing the bootlets
+
+We should make this part of the automated build process, but for now we do it manually. Download the
+imx-bootlets source code. That version is kind of hard to find except as part of the big LTIB download.
+So for the time being I've put it here:
+
+~/olinuxino$ wget http://kolev.info/olinuxino/imx-bootlets-src-10.05.02.tar.gz
+
+Extract and cd into the dir:
+~/olinuxino$ tar xzvf imx-bootlets-src-10.05.02.tar.gz 
+~/olinuxino$ cd imx-bootlets-src-10.05.02/
+
+Export environment variables to use the right cross compiler and find elftosb in PATH:
+
+~/olinuxino/imx-bootlets-src-10.05.02$ export CROSS_COMPILE=/home/rado/olinuxino/oe-core/build/tmp-eglibc/sysroots/i686-linux/usr/bin/armv5te-oe-linux-gnueabi/arm-oe-linux-gnueabi-
+
+~/olinuxino/imx-bootlets-src-10.05.02$ export PATH=$PATH:/home/rado/olinuxino/oe-core/build/tmp-eglibc/sysroots/i686-linux/usr/bin/
+
+Copy the zImage kernel image over to the current dir as zImage:
+
+~/olinuxino/imx-bootlets-src-10.05.02$ cp ~/olinuxino/oe-core/build/tmp-eglibc/deploy/images/zImage-olinuxino.bin zImage
+
+Run make:
+
+~/olinuxino/imx-bootlets-src-10.05.02$ make
+
+Ignore errors, run elftosb manually:
+
+~/olinuxino/imx-bootlets-src-10.05.02$ elftosb -z -c ./linux_prebuilt.db -o imx23_linux.sb
+
+Create a mx23.img file:
+
+~/olinuxino/imx-bootlets-src-10.05.02$ dd if=/dev/zero of=mx23.img bs=512 count=4
+~/olinuxino/imx-bootlets-src-10.05.02$ dd if=imx23_linux.sb of=mx23.img ibs=512 seek=4 conv=sync,notrunc
+
+* Partition the SD card
+
+You should take and SD card and delete all existing partitions. Then create a first partition of type 53 (OnTrack DM6 Aux3) with size around 16M for the kernel and a second partition of type 83 (Linux) for the rootfs.
+Here's what my SD card partitions look like:
+
+~/olinuxino/imx-bootlets-src-10.05.02$ sudo fdisk /dev/mmcblk0
+Command (m for help): p
+
+Disk /dev/mmcblk0: 2041 MB, 2041577472 bytes
+255 heads, 63 sectors/track, 248 cylinders
+Units = cylinders of 16065 * 512 = 8225280 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disk identifier: 0x00000000
+
+        Device Boot      Start         End      Blocks   Id  System
+/dev/mmcblk0p1               1          16      128488+  53  OnTrack DM6 Aux3
+/dev/mmcblk0p2              17         248     1863540   83  Linux
+
+Now, put he mx23.img file directly on the first partition:
+
+~/olinuxino/imx-bootlets-src-10.05.02$ sudo dd if=mx23.img of=/dev/mmcblk0p1 
+3401+0 records in
+3401+0 records out
+1741312 bytes (1.7 MB) copied, 0.688659 s, 2.5 MB/s
+
+Format the second partition on the SD card as ext3 and extract the core-image-minimal-olinuxino.tar.bz2
+in there.
+
+Unmount SD card, plug into Olinuxino board and power up!
