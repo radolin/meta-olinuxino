@@ -25,6 +25,11 @@ Source code: https://github.com/OLIMEX/meta-olinuxino
 
 Step by step instructions to building kernel/rootfs images and writing to SD card:
 
+If you're not interested in rebuilding everything from source, but instead just want
+to test the board you can use the images supplied in the binary directory of this
+repository and skip directly to the "Partition the SD card" section.
+
+
 * Make sure your distro has the needed packages isntalled for building OE. Helpful
  package lists and copy/paste apt-get install commands can be found at:
  http://www.openembedded.org/wiki/OEandYourDistro 
@@ -89,7 +94,7 @@ Then from inside the build directory, call bitbake with a recipe name:
 ~/olinuxino/oe-core/build$ bitbake core-image-minimal
 
 This will now fetch all the sources from the internet and build a cross toolchain, linux kernel
-and root filesystem for your board. This can take may hours depending on the speed of your PC 
+and root filesystem for your board. This can take many hours depending on the speed of your PC 
 and internet connection and use 15-20G of disk space, so make sure you have enough free.
 
 If all goes well and the build is finished without errors you should find the results in the
