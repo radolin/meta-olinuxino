@@ -104,14 +104,19 @@ are the core-image-minimal-olinuxino.tar.bz2 rootfs archive and the zImage-olinu
 * Preparing the bootlets
 
 We should make this part of the automated build process, but for now we do it manually. Download the
-imx-bootlets source code. That version is kind of hard to find except as part of the big LTIB download.
+imx-bootlets source code and the patch for Olinuxino support. That version is kind of hard to find except as part of the big LTIB download.
 So for the time being I've put it here:
 
 ~/olinuxino$ wget http://kolev.info/olinuxino/imx-bootlets-src-10.05.02.tar.gz
+~/olinuxino$ wget http://kolev.info/olinuxino/01-bootlets.patch
 
 Extract and cd into the dir:
 ~/olinuxino$ tar xzvf imx-bootlets-src-10.05.02.tar.gz 
 ~/olinuxino$ cd imx-bootlets-src-10.05.02/
+
+Apply the patch file:
+
+~/olinuxino/imx-bootlets-src-10.05.02$ patch -p1 < ../01-bootlets.patch
 
 Export environment variables to use the right cross compiler and find elftosb in PATH:
 
